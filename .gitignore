@@ -1,0 +1,19 @@
+# Node / Astro
+node_modules/
+dist/
+.astro/
+
+# Go
+/bin/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
