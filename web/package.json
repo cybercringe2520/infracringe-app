@@ -10,11 +10,14 @@
   },
   "dependencies": {
     "next": "16.4.6",
+    "next-mdx-remote-client": "^2.1.12",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
+    "@tailwindcss/typography": "^0.5.20",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

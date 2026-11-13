@@ -1,0 +1,17 @@
+# Certifications and projects shown on the home page, newest first.
+# type: certification | project | competition
+- name: project0
+  type: project
+  date: 2026-11-11
+  url: https://github.com/cybercringe2520/infracringe-app
+  description: Lorem ipsum dolor sit amet, consectetur adipiscing elit
+
+- name: certification0
+  type: certification
+  date: 2025-06-01
+  description: Lorem ipsum dolor sit amet
+
+- name: certification1
+  type: certification
+  date: 2024-10-01
+  description: Lorem ipsum dolor sit amet
