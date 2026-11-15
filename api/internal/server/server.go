@@ -2,6 +2,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -20,10 +21,12 @@ var validSlug = regexp.MustCompile(`^[a-z0-9-]{1,100}$`)
 type Server struct {
 	views  views.Store
 	logger *slog.Logger
+	ready  func(context.Context) error // nil means "always ready"
 }
 
-func New(store views.Store, logger *slog.Logger) *Server {
-	return &Server{views: store, logger: logger}
+// New creates the server. ready is called by /readyz, for example to ping the database.
+func New(store views.Store, logger *slog.Logger, ready func(context.Context) error) *Server {
+	return &Server{views: store, logger: logger, ready: ready}
 }
 
 // Routes returns the router with all endpoints and middleware.
@@ -51,8 +54,17 @@ func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
 }
 
 // readyz: the app can serve traffic. Kubernetes stops sending requests if this fails.
-// In Step 4 this also checks the database connection.
-func (s *Server) readyz(w http.ResponseWriter, _ *http.Request) {
+// With a database configured, it fails when the database cannot be reached.
+func (s *Server) readyz(w http.ResponseWriter, r *http.Request) {
+	if s.ready != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := s.ready(ctx); err != nil {
+			s.logger.Warn("not ready", "error", err)
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "not ready"})
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
 }
 
