@@ -31,9 +31,10 @@ export default async function PostPage({ params }: Props) {
   const older = posts[index + 1];
 
   return (
-    <article>
+    // data-pagefind-body: only article pages are added to the search index
+    <article data-pagefind-body>
       <h1 className="mb-2 text-xl font-bold">{post.title}</h1>
-      <p className="mb-8 text-sm text-neutral-500">
+      <p data-pagefind-ignore className="mb-8 text-sm text-neutral-500">
         {formatDate(post.date)} · {post.readingTime} min read ·{" "}
         <Link href={`/categories/${categorySlug(post.category)}/`} className="hover:text-green-400">
           {post.category}
@@ -45,7 +46,7 @@ export default async function PostPage({ params }: Props) {
         <MDXRemote source={post.content} />
       </div>
 
-      <nav className="mt-12 flex justify-between gap-4 text-sm">
+      <nav data-pagefind-ignore className="mt-12 flex justify-between gap-4 text-sm">
         {older ? (
           <Link href={`/blog/${older.slug}/`} className="hover:text-green-400">← {older.title}</Link>
         ) : <span />}
