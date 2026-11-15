@@ -19,14 +19,15 @@ import (
 var validSlug = regexp.MustCompile(`^[a-z0-9-]{1,100}$`)
 
 type Server struct {
-	views  views.Store
-	logger *slog.Logger
-	ready  func(context.Context) error // nil means "always ready"
+	views   views.Store
+	logger  *slog.Logger
+	ready   func(context.Context) error // nil means "always ready"
+	metrics *metrics
 }
 
 // New creates the server. ready is called by /readyz, for example to ping the database.
 func New(store views.Store, logger *slog.Logger, ready func(context.Context) error) *Server {
-	return &Server{views: store, logger: logger, ready: ready}
+	return &Server{views: store, logger: logger, ready: ready, metrics: newMetrics()}
 }
 
 // Routes returns the router with all endpoints and middleware.
@@ -34,11 +35,12 @@ func (s *Server) Routes() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID) // give each request an ID for the logs
 	r.Use(middleware.RealIP)    // use the client IP from proxy headers
-	r.Use(s.logRequests)        // one JSON log line per request
+	r.Use(s.instrument)         // one JSON log line and metrics per request
 	r.Use(middleware.Recoverer) // turn a panic into a 500 instead of a crash
 
 	r.Get("/healthz", s.healthz)
 	r.Get("/readyz", s.readyz)
+	r.Method(http.MethodGet, "/metrics", s.metrics.handler())
 
 	r.Route("/api/views/{slug}", func(r chi.Router) {
 		r.Get("/", s.getViews)
@@ -91,6 +93,7 @@ func (s *Server) incrementViews(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	s.metrics.views.Inc()
 	writeJSON(w, http.StatusOK, map[string]any{"slug": slug, "views": count})
 }
 
@@ -109,21 +112,6 @@ func (s *Server) serverError(w http.ResponseWriter, r *http.Request, err error) 
 	s.logger.Error("request failed", "error", err, "path", r.URL.Path,
 		"request_id", middleware.GetReqID(r.Context()))
 	writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
-}
-
-func (s *Server) logRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
-		next.ServeHTTP(ww, r)
-		s.logger.Info("request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", ww.Status(),
-			"duration_ms", time.Since(start).Milliseconds(),
-			"request_id", middleware.GetReqID(r.Context()),
-		)
-	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/cybercringe2520/infracringe-app/api/internal/views"
@@ -75,5 +76,36 @@ func TestReadyzFailsWhenDatabaseDown(t *testing.T) {
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", rec.Code)
+	}
+}
+
+func TestMetrics(t *testing.T) {
+	h := newTestServer()
+
+	// Generate some traffic: one health check, two views, one unknown URL.
+	for _, req := range []*http.Request{
+		httptest.NewRequest(http.MethodGet, "/healthz", nil),
+		httptest.NewRequest(http.MethodPost, "/api/views/post0", nil),
+		httptest.NewRequest(http.MethodPost, "/api/views/post1", nil),
+		httptest.NewRequest(http.MethodGet, "/no-such-page", nil),
+	} {
+		h.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := rec.Body.String()
+
+	for _, want := range []string{
+		`http_requests_total{method="GET",route="/healthz",status="200"} 1`,
+		// Both slugs are counted under one route pattern, not one series per slug.
+		`http_requests_total{method="POST",route="/api/views/{slug}",status="200"} 2`,
+		`http_requests_total{method="GET",route="unmatched",status="404"} 1`,
+		`infracringe_page_views_total 2`,
+		`go_goroutines`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("metrics output is missing %q", want)
+		}
 	}
 }
