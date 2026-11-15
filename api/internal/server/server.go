@@ -1,0 +1,121 @@
+// Package server wires up the HTTP routes and handlers.
+package server
+
+import (
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"regexp"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/cybercringe2520/infracringe-app/api/internal/views"
+)
+
+// Only lowercase letters, digits and dashes, like the article file names.
+var validSlug = regexp.MustCompile(`^[a-z0-9-]{1,100}$`)
+
+type Server struct {
+	views  views.Store
+	logger *slog.Logger
+}
+
+func New(store views.Store, logger *slog.Logger) *Server {
+	return &Server{views: store, logger: logger}
+}
+
+// Routes returns the router with all endpoints and middleware.
+func (s *Server) Routes() http.Handler {
+	r := chi.NewRouter()
+	r.Use(middleware.RequestID) // give each request an ID for the logs
+	r.Use(middleware.RealIP)    // use the client IP from proxy headers
+	r.Use(s.logRequests)        // one JSON log line per request
+	r.Use(middleware.Recoverer) // turn a panic into a 500 instead of a crash
+
+	r.Get("/healthz", s.healthz)
+	r.Get("/readyz", s.readyz)
+
+	r.Route("/api/views/{slug}", func(r chi.Router) {
+		r.Get("/", s.getViews)
+		r.Post("/", s.incrementViews)
+	})
+
+	return r
+}
+
+// healthz: the process is running. Kubernetes restarts the pod if this fails.
+func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// readyz: the app can serve traffic. Kubernetes stops sending requests if this fails.
+// In Step 4 this also checks the database connection.
+func (s *Server) readyz(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
+}
+
+func (s *Server) getViews(w http.ResponseWriter, r *http.Request) {
+	slug, ok := s.slugParam(w, r)
+	if !ok {
+		return
+	}
+	count, err := s.views.Get(r.Context(), slug)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"slug": slug, "views": count})
+}
+
+func (s *Server) incrementViews(w http.ResponseWriter, r *http.Request) {
+	slug, ok := s.slugParam(w, r)
+	if !ok {
+		return
+	}
+	count, err := s.views.Increment(r.Context(), slug)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"slug": slug, "views": count})
+}
+
+// slugParam reads {slug} from the URL and rejects anything that is not a valid slug.
+func (s *Server) slugParam(w http.ResponseWriter, r *http.Request) (string, bool) {
+	slug := chi.URLParam(r, "slug")
+	if !validSlug.MatchString(slug) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid slug"})
+		return "", false
+	}
+	return slug, true
+}
+
+// serverError logs the real error but never sends its details to the client.
+func (s *Server) serverError(w http.ResponseWriter, r *http.Request, err error) {
+	s.logger.Error("request failed", "error", err, "path", r.URL.Path,
+		"request_id", middleware.GetReqID(r.Context()))
+	writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+}
+
+func (s *Server) logRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+		next.ServeHTTP(ww, r)
+		s.logger.Info("request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", ww.Status(),
+			"duration_ms", time.Since(start).Milliseconds(),
+			"request_id", middleware.GetReqID(r.Context()),
+		)
+	})
+}
+
+func writeJSON(w http.ResponseWriter, status int, body any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(body)
+}
