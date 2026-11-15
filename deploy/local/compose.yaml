@@ -1,0 +1,58 @@
+# Local development stack.
+#   make up    build and start everything, then open http://localhost:8080
+#   make down  stop everything (data is kept in the pgdata volume)
+x-database-url: &database-url "postgres://infracringe:${POSTGRES_PASSWORD:-localdev}@db:5432/infracringe?sslmode=disable"
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: infracringe
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev} # local only; never used outside your laptop
+      POSTGRES_DB: infracringe
+    ports:
+      - "127.0.0.1:5432:5432" # reachable from this machine only, not your network
+    volumes:
+      - pgdata:/var/lib/postgresql # keeps data between restarts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U infracringe -d infracringe"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Runs "api migrate" once, then exits. The API waits for it to succeed.
+  migrate:
+    build: ./api
+    command: ["migrate"]
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: *database-url
+      PORT: "8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build: ./web
+
+  # One address for everything: / -> web, /api/ -> api
+  gateway:
+    image: nginxinc/nginx-unprivileged:alpine
+    volumes:
+      - ./deploy/local/gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      - api
+      - web
+
+volumes:
+  pgdata:

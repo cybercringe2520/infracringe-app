@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote-client/rsc";
+import ViewCounter from "@/components/ViewCounter";
 import { getAllPosts, getPost, categorySlug, formatDate } from "@/lib/posts";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -37,6 +38,7 @@ export default async function PostPage({ params }: Props) {
         <Link href={`/categories/${categorySlug(post.category)}/`} className="hover:text-green-400">
           {post.category}
         </Link>
+        <ViewCounter slug={post.slug} />
       </p>
 
       <div className="prose prose-invert prose-neutral max-w-none prose-a:text-green-400 prose-code:before:content-none prose-code:after:content-none">
