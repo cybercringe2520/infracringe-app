@@ -5,6 +5,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "infracringe",
   description: "DevOps and DevSecOps notes by cybercringe",
+  // Lets browsers and feed readers find the RSS feed automatically.
+  alternates: { types: { "application/rss+xml": "/feed.xml" } },
 };
 
 const nav = [
@@ -28,8 +30,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           ))}
         </header>
         <main id="main">{children}</main>
-        <footer className="mt-16 text-sm text-neutral-500">
-          © 2026 infracringe
+        <footer className="mt-16 flex gap-4 text-sm text-neutral-500">
+          <span>© 2026 infracringe</span>
+          <a href="/feed.xml" className="hover:text-green-400">rss</a>
         </footer>
       </body>
     </html>
