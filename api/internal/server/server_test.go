@@ -1,7 +1,9 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,7 +15,7 @@ import (
 
 func newTestServer() http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return New(views.NewMemoryStore(), logger).Routes()
+	return New(views.NewMemoryStore(), logger, nil).Routes()
 }
 
 func TestHealthz(t *testing.T) {
@@ -60,5 +62,18 @@ func TestInvalidSlug(t *testing.T) {
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("slug %q: status = %d, want 400", slug, rec.Code)
 		}
+	}
+}
+
+func TestReadyzFailsWhenDatabaseDown(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	down := func(context.Context) error { return errors.New("connection refused") }
+	h := New(views.NewMemoryStore(), logger, down).Routes()
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", rec.Code)
 	}
 }

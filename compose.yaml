@@ -1,0 +1,20 @@
+# Local development stack. Start with: docker compose up -d
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: infracringe
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev} # local only; never used outside your laptop
+      POSTGRES_DB: infracringe
+    ports:
+      - "127.0.0.1:5432:5432" # reachable from this machine only, not your network
+    volumes:
+      - pgdata:/var/lib/postgresql # keeps data between restarts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U infracringe -d infracringe"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
