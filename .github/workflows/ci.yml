@@ -19,18 +19,18 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out code
-        uses: actions/checkout@<CHECKOUT_SHA> # <CHECKOUT_TAG>
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@<SETUP_GO_SHA> # <SETUP_GO_TAG>
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: api/go.mod
           cache-dependency-path: api/go.sum
 
       - name: Set up Node.js
-        uses: actions/setup-node@<SETUP_NODE_SHA> # <SETUP_NODE_TAG>
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -49,7 +49,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out full history
-        uses: actions/checkout@<CHECKOUT_SHA> # <CHECKOUT_TAG>
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -57,5 +57,5 @@ jobs:
       - name: Scan the whole Git history for secrets
         run: >
           docker run --rm -v "$PWD:/repo" -w /repo
-          ghcr.io/gitleaks/gitleaks:<GITLEAKS_TAG>
+          ghcr.io/gitleaks/gitleaks:v8.30.1
           git --redact --verbose .
